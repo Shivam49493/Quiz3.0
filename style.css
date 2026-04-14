@@ -429,11 +429,6 @@ input:focus, select:focus {
   }
 }
 
-.empty-state {
-  text-align: center;
-  padding: 28px 16px;
-}
-
 pre {
   background: var(--color-background-secondary);
   padding: 12px;

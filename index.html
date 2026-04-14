@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>QuizMaster Cloud | Persistent Quiz Storage</title>
+  <title>QuizMaster Cloud | Firebase Storage</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
   <div style="text-align:center;padding:8px 0 12px">
     <div class="logo" style="width:56px;height:56px;margin:0 auto 12px;font-size:26px;">Q</div>
     <h1 style="font-size:26px;font-weight:600">QuizMaster Cloud</h1>
-    <p style="font-size:14px;margin-top:5px">Persistent storage · Access anywhere</p>
+    <p style="font-size:14px;margin-top:5px">Powered by Firebase · Access anywhere</p>
     <div id="cloudStatusBadge" style="margin-top: 10px;"></div>
   </div>
   <div class="role-grid">
@@ -77,8 +77,8 @@
   <div id="tab-upload" class="tab-panel active">
     <div class="upload-zone card" id="adminUploadZone">
       <div style="font-size:32px;">☁️📁</div>
-      <p style="font-weight:500">Upload quiz JSON to cloud</p>
-      <p style="font-size:12px">Drag & drop or click · auto-syncs to database</p>
+      <p style="font-weight:500">Upload quiz JSON to Firebase</p>
+      <p style="font-size:12px">Drag & drop or click · auto-syncs to cloud</p>
       <input type="file" id="adminFileInput" accept=".json" style="display:none">
     </div>
     <div class="card">
@@ -94,12 +94,12 @@
   ]
 }]</pre>
     </div>
-    <button class="btn btn-primary" onclick="quizApp.loadSampleToCloud()">📚 Load sample & sync to cloud</button>
-    <button class="btn btn-teal" style="margin-top:8px" onclick="quizApp.syncFromCloud()">🔄 Sync from cloud</button>
+    <button class="btn btn-primary" onclick="quizApp.loadSampleToCloud()">📚 Load sample & sync to Firebase</button>
+    <button class="btn btn-teal" style="margin-top:8px" onclick="quizApp.syncFromCloud()">🔄 Sync from Firebase</button>
     <button class="btn" style="margin-top:8px" onclick="quizApp.exportToFile()">💾 Export quizzes to file</button>
   </div>
   <div id="tab-manage" class="tab-panel">
-    <div id="adminTopicList"><div class="card">Loading cloud data...</div></div>
+    <div id="adminTopicList"><div class="card">Loading Firebase data...</div></div>
   </div>
   <div id="tab-stats" class="tab-panel">
     <div class="stat-grid">
@@ -232,6 +232,8 @@
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

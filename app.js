@@ -1,6 +1,22 @@
-// QuizMaster Cloud Application - Fixed with reliable storage
+// QuizMaster Cloud Application - Firebase Edition
 const quizApp = (function() {
-  // Storage keys
+  // Firebase Configuration (Free Tier)
+  // Create your own Firebase project at https://console.firebase.google.com/
+  // Then replace this config with your own
+  const firebaseConfig = {
+  apiKey: "AIzaSyAUJ1B8u7_RikNVQm-M1Z99koHyfQEiFZg",
+  authDomain: "quizmaster-915d2.firebaseapp.com",
+  projectId: "quizmaster-915d2",
+  storageBucket: "quizmaster-915d2.firebasestorage.app",
+  messagingSenderId: "1039449575733",
+  appId: "1:1039449575733:web:e7adab4768266263c5fc7c"
+};
+  
+  // Initialize Firebase
+  let db = null;
+  let firebaseInitialized = false;
+  
+  // Storage keys for local backup
   const STORAGE_KEYS = {
     QUIZZES: 'quizmaster_quizzes',
     ATTEMPTS: 'quizmaster_attempts',
@@ -69,7 +85,124 @@ const quizApp = (function() {
     }
   ];
   
-  // ============= Local Storage Functions (Reliable) =============
+  // Initialize Firebase
+  function initFirebase() {
+    try {
+      if (typeof firebase !== 'undefined' && !firebaseInitialized) {
+        // Check if Firebase is already initialized
+        if (!firebase.apps.length) {
+          firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+        firebaseInitialized = true;
+        console.log('Firebase initialized successfully');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Firebase initialization failed:', e);
+      showCloudStatus('⚠️ Firebase connection failed, using local storage', '#fff3e0');
+      return false;
+    }
+  }
+  
+  // ============= Firebase Cloud Storage Functions =============
+  async function saveToFirebase() {
+    if (!firebaseInitialized) {
+      initFirebase();
+    }
+    
+    if (!db) {
+      console.log('Firebase not available, saving to localStorage only');
+      saveToLocalStorage();
+      showCloudStatus('💾 Saved to local storage', '#fff3e0');
+      return false;
+    }
+    
+    try {
+      showCloudStatus('☁️ Saving to Firebase...', '#e3f2fd');
+      
+      const cloudData = {
+        quizzes: savedQuizData,
+        attempts: studentAttempts,
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+        version: '2.0'
+      };
+      
+      // Save to Firestore
+      await db.collection('quizData').doc('master').set(cloudData, { merge: true });
+      
+      // Also save to local storage as backup
+      saveToLocalStorage();
+      
+      showCloudStatus('☁️ Firebase sync ✓', '#e6f7e6');
+      console.log('Firebase sync successful');
+      return true;
+    } catch (e) {
+      console.error('Firebase save error:', e);
+      saveToLocalStorage();
+      showCloudStatus('⚠️ Firebase error, saved locally', '#fff3e0');
+      return false;
+    }
+  }
+  
+  async function loadFromFirebase() {
+    if (!firebaseInitialized) {
+      initFirebase();
+    }
+    
+    if (!db) {
+      console.log('Firebase not available, loading from localStorage');
+      loadFromLocalStorage();
+      return false;
+    }
+    
+    try {
+      showCloudStatus('🔄 Loading from Firebase...', '#e3f2fd');
+      
+      const docRef = db.collection('quizData').doc('master');
+      const doc = await docRef.get();
+      
+      if (doc.exists) {
+        const data = doc.data();
+        if (data.quizzes) {
+          savedQuizData = data.quizzes;
+          studentAttempts = data.attempts || [];
+          saveToLocalStorage(); // Backup to local
+          showCloudStatus('☁️ Firebase loaded ✓', '#e6f7e6');
+          console.log(`Loaded ${savedQuizData.length} quizzes from Firebase`);
+          return true;
+        }
+      }
+      
+      // If no data in Firebase, try local storage
+      loadFromLocalStorage();
+      if (savedQuizData.length > 0) {
+        // Sync local data to Firebase
+        await saveToFirebase();
+      }
+      return false;
+    } catch (e) {
+      console.error('Firebase load error:', e);
+      loadFromLocalStorage();
+      showCloudStatus('💾 Using local storage', '#fff3e0');
+      return false;
+    }
+  }
+  
+  async function syncFromCloud() {
+    showCloudStatus('🔄 Syncing with Firebase...', '#e3f2fd');
+    await loadFromFirebase();
+    if (currentRole === 'admin') {
+      renderAdminTopics();
+      renderStats();
+    } else if (currentRole === 'student') {
+      renderStudentTopics();
+      renderStudentHistory();
+    }
+  }
+  
+  // ============= Local Storage Functions (Backup) =============
   function saveToLocalStorage() {
     try {
       localStorage.setItem(STORAGE_KEYS.QUIZZES, JSON.stringify(savedQuizData));
@@ -108,89 +241,6 @@ const quizApp = (function() {
       savedQuizData = [];
       studentAttempts = [];
       return false;
-    }
-  }
-  
-  // ============= Cloud Storage (JSONBin.io) =============
-  // Using a public, free JSONBin bin that persists data
-  // You can create your own free account at jsonbin.io and replace this BIN_ID
-  const CLOUD_BIN_ID = '67fbd2d28a456b796682c1d4'; // Public demo bin - data persists
-  const API_KEY = '$2a$10$zKjLmNpQrStUvWxYzAbCdEfGhIjKlMnOpQrStUvW'; // Demo key
-  
-  async function saveToCloud() {
-    try {
-      const cloudData = { 
-        quizzes: savedQuizData, 
-        attempts: studentAttempts, 
-        lastUpdated: new Date().toISOString(),
-        version: '2.0'
-      };
-      
-      const response = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'X-Master-Key': API_KEY,
-          'X-Bin-Version': 'latest'
-        },
-        body: JSON.stringify(cloudData)
-      });
-      
-      if (response.ok) {
-        showCloudStatus('☁️ Cloud synced ✓', '#e6f7e6');
-        console.log('Cloud sync successful');
-        return true;
-      } else {
-        console.warn('Cloud save failed, status:', response.status);
-        showCloudStatus('⚠️ Cloud sync failed, saved locally', '#fff3e0');
-        return false;
-      }
-    } catch(e) {
-      console.error('Cloud save error:', e);
-      showCloudStatus('⚠️ Offline mode - saved locally', '#fff3e0');
-      return false;
-    }
-  }
-  
-  async function loadFromCloud() {
-    try {
-      const response = await fetch(`https://api.jsonbin.io/v3/b/${CLOUD_BIN_ID}/latest`, { 
-        headers: { 'X-Master-Key': API_KEY } 
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.record && data.record.quizzes) {
-          savedQuizData = data.record.quizzes;
-          studentAttempts = data.record.attempts || [];
-          saveToLocalStorage(); // Backup to local
-          showCloudStatus('☁️ Cloud loaded ✓', '#e6f7e6');
-          console.log(`Loaded ${savedQuizData.length} quizzes from cloud`);
-          return true;
-        }
-      }
-      throw new Error('Cloud load failed');
-    } catch(e) {
-      console.log('Cloud load error, using local storage:', e);
-      loadFromLocalStorage();
-      if (savedQuizData.length === 0) {
-        savedQuizData = [];
-        studentAttempts = [];
-      }
-      showCloudStatus('💾 Using local storage', '#fff3e0');
-      return false;
-    }
-  }
-  
-  async function syncFromCloud() {
-    showCloudStatus('🔄 Syncing...', '#e3f2fd');
-    await loadFromCloud();
-    if (currentRole === 'admin') {
-      renderAdminTopics();
-      renderStats();
-    } else if (currentRole === 'student') {
-      renderStudentTopics();
-      renderStudentHistory();
     }
   }
   
@@ -284,7 +334,7 @@ const quizApp = (function() {
       savedQuizData[i].visible = savedQuizData[i].visible === false ? true : false;
       renderAdminTopics();
       saveToLocalStorage();
-      saveToCloud();
+      saveToFirebase();
     }
   }
   
@@ -293,7 +343,7 @@ const quizApp = (function() {
       savedQuizData.splice(i, 1);
       renderAdminTopics();
       saveToLocalStorage();
-      await saveToCloud();
+      await saveToFirebase();
       renderStats();
     }
   }
@@ -302,10 +352,10 @@ const quizApp = (function() {
     savedQuizData = JSON.parse(JSON.stringify(SAMPLE_TOPICS));
     savedQuizData.forEach(t => { if (t.visible === undefined) t.visible = true; });
     saveToLocalStorage();
-    await saveToCloud();
+    await saveToFirebase();
     renderAdminTopics();
     renderStats();
-    alert("✅ Sample loaded & saved to cloud! Available from any device.");
+    alert("✅ Sample loaded & saved to Firebase! Available from any device.");
   }
   
   function exportToFile() {
@@ -335,7 +385,6 @@ const quizApp = (function() {
         
         data.forEach(t => { 
           t.visible = true;
-          // Ensure each question has required fields
           t.questions.forEach(q => {
             if (!q.options) q.options = [];
             if (!q.answer) q.answer = '';
@@ -353,10 +402,10 @@ const quizApp = (function() {
         });
         
         saveToLocalStorage();
-        await saveToCloud();
+        await saveToFirebase();
         renderAdminTopics();
         renderStats();
-        alert(`✅ Synced ${data.length} topic(s) to cloud!`);
+        alert(`✅ Synced ${data.length} topic(s) to Firebase!`);
       } catch (err) {
         alert('JSON error: ' + err.message);
       }
@@ -375,7 +424,6 @@ const quizApp = (function() {
       return;
     }
     
-    // Get best scores for each topic
     const bestScores = {};
     studentAttempts.filter(a => a.user === currentUser).forEach(a => {
       if (!bestScores[a.topic] || a.pct > bestScores[a.topic]) {
@@ -602,7 +650,7 @@ const quizApp = (function() {
     });
     
     saveToLocalStorage();
-    await saveToCloud();
+    await saveToFirebase();
     renderStats();
     if (currentRole === 'student') {
       renderStudentHistory();
@@ -650,7 +698,7 @@ const quizApp = (function() {
         currentRole = 'admin';
         currentUser = u;
         errDiv.style.display = 'none';
-        await loadFromCloud();
+        await loadFromFirebase();
         renderAdminTopics();
         renderStats();
         showScreen('screen-admin');
@@ -663,7 +711,7 @@ const quizApp = (function() {
         currentRole = 'student';
         currentUser = u;
         errDiv.style.display = 'none';
-        await loadFromCloud();
+        await loadFromFirebase();
         document.getElementById('studentNameBadge').innerText = STUDENTS[currentUser]?.name || currentUser;
         renderStudentTopics();
         renderStudentHistory();
@@ -723,10 +771,11 @@ const quizApp = (function() {
   // Initialize
   function init() {
     setupEventListeners();
+    initFirebase();
     loadFromLocalStorage();
-    // Try to sync with cloud in background
+    // Try to sync with Firebase in background
     setTimeout(() => {
-      loadFromCloud().then(() => {
+      loadFromFirebase().then(() => {
         if (currentRole === 'admin') {
           renderAdminTopics();
           renderStats();
